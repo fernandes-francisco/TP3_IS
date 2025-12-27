@@ -1,0 +1,14 @@
+syntax = "proto3"
+package bi_request;
+
+service XmlQueryService{
+    rpc GetQueryResult (Query) returns (stream QueryResult);
+}
+
+message Query{
+    string QueryString = 1;
+}
+
+message QueryResult{
+    string Result = 1;
+}
