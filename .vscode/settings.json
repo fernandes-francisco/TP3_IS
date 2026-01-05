@@ -1,0 +1,5 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "./k8s/xml_service/Cargo.toml"
+    ]
+}

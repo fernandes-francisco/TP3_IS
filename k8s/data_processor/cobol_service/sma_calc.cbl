@@ -1,0 +1,40 @@
+IDENTIFICATION DIVISION.
+       PROGRAM-ID. SMA-CALCULATOR.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       
+       01  WS-RAW-INPUT        PIC X(200).
+       
+       01  WS-PRICE-TABLE.
+           05 WS-PRICE         PIC 9(7)V99 OCCURS 30 TIMES
+                               INDEXED BY I.
+
+       01  WS-COUNT            PIC 99 VALUE 0.
+       01  WS-TOTAL-SUM        PIC 9(12)V99 COMP-3 VALUE 0.
+       01  WS-AVERAGE          PIC 9(7)V99 COMP-3.
+
+       01  FMT-AVERAGE         PIC $$$$,$$9.99.
+
+       PROCEDURE DIVISION.
+       MAIN-PROCEDURE.
+           ACCEPT WS-RAW-INPUT.
+           UNSTRING WS-RAW-INPUT DELIMITED BY ";"
+               INTO WS-PRICE(1) WS-PRICE(2) WS-PRICE(3) WS-PRICE(4) WS-PRICE(5)
+                    WS-PRICE(6) WS-PRICE(7) WS-PRICE(8) WS-PRICE(9) WS-PRICE(10)
+                    WS-PRICE(11) WS-PRICE(12) WS-PRICE(13) WS-PRICE(14) WS-PRICE(15)
+               TALLYING IN WS-COUNT.
+
+           PERFORM VARYING I FROM 1 BY 1 UNTIL I > WS-COUNT
+               ADD WS-PRICE(I) TO WS-TOTAL-SUM
+           END-PERFORM.
+
+           IF WS-COUNT > 0 THEN
+               DIVIDE WS-TOTAL-SUM BY WS-COUNT GIVING WS-AVERAGE
+           ELSE
+               MOVE 0 TO WS-AVERAGE
+           END-IF.
+           MOVE WS-AVERAGE TO FMT-AVERAGE.
+           DISPLAY "MEDIA_M_CALCULADA:" FMT-AVERAGE.
+
+           STOP RUN.
