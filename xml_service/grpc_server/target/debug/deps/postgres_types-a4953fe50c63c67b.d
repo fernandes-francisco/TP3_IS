@@ -1,0 +1,11 @@
+/home/o001/TP3_IS/xml_service/grpc_server/target/debug/deps/postgres_types-a4953fe50c63c67b.d: /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/lib.rs /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/pg_lsn.rs /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/private.rs /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/special.rs /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/type_gen.rs
+
+/home/o001/TP3_IS/xml_service/grpc_server/target/debug/deps/libpostgres_types-a4953fe50c63c67b.rlib: /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/lib.rs /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/pg_lsn.rs /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/private.rs /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/special.rs /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/type_gen.rs
+
+/home/o001/TP3_IS/xml_service/grpc_server/target/debug/deps/libpostgres_types-a4953fe50c63c67b.rmeta: /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/lib.rs /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/pg_lsn.rs /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/private.rs /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/special.rs /home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/type_gen.rs
+
+/home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/lib.rs:
+/home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/pg_lsn.rs:
+/home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/private.rs:
+/home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/special.rs:
+/home/o001/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postgres-types-0.2.12/src/type_gen.rs:

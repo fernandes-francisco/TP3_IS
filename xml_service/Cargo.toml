@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    "converter",
+    "db_sender",
+    "grpc_server",
+    "validator"
+]
+resolver = "2"  
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
