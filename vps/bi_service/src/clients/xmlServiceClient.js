@@ -5,7 +5,6 @@ const xml2js = require('xml2js');
 
 const XML_SERVICE_GRPC_URL = process.env.XML_SERVICE_GRPC_URL || 'localhost:50051';
 
-// Carregar proto
 const PROTO_PATH = path.join(__dirname, '../../proto/bi_request.proto');
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
@@ -18,7 +17,6 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
 const xmlQueryService = protoDescriptor.bi_request;
 
-// Cliente gRPC
 let grpcClient = null;
 
 function getGrpcClient() {
@@ -31,39 +29,31 @@ function getGrpcClient() {
   return grpcClient;
 }
 
-/**
- * Converte recursivamente estrutura XML (xml2js) para objeto JavaScript plano
- * @param {Object} obj - Objeto do xml2js
- * @returns {Object|Array|string} Objeto normalizado
- */
+// Converte XML (xml2js) para objeto JavaScript plano
 function deepNormalize(obj) {
   if (typeof obj === 'string') return obj;
   if (Array.isArray(obj)) {
-    if (obj.length === 1 && typeof obj[0] === 'string') return obj[0]; // valor de texto simples
+    if (obj.length === 1 && typeof obj[0] === 'string') return obj[0];
     return obj.map(item => deepNormalize(item));
   }
   if (typeof obj !== 'object' || obj === null) return obj;
 
   const result = {};
 
-  // Processar atributos (prefixo $)
   if (obj.$ && Object.keys(obj.$).length > 0) {
     Object.assign(result, obj.$);
   }
 
-  // Processar elementos filhos
   Object.keys(obj).forEach(key => {
-    if (key === '$') return; // já processado
+    if (key === '$') return;
     const value = obj[key];
     
     if (Array.isArray(value)) {
-      // Se é array com um único elemento simples, desembrulha
       if (value.length === 1 && typeof value[0] === 'string') {
         result[key] = value[0];
       } else if (value.length === 1 && typeof value[0] === 'object') {
         result[key] = deepNormalize(value[0]);
       } else {
-        // Array com múltiplos elementos - normaliza cada um
         result[key] = value.map(item => deepNormalize(item));
       }
     } else {
@@ -74,56 +64,94 @@ function deepNormalize(obj) {
   return result;
 }
 
-/**
- * Normaliza um nó <Asset> para um objeto com campos do crawler Yahoo Finance
- * Estrutura XML esperada do converter:
- * <Asset Ticker="AAPL">
- *   <Identification><Name>...</Name></Identification>
- *   <FundamentalData><MarketCap>...</MarketCap><PERatio>...</PERatio><EPS>...</EPS><Beta>...</Beta></FundamentalData>
- *   <DailyData><Day><ClosingPrice>...</ClosingPrice><Volume>...</Volume></Day>...</DailyData>
- * </Asset>
- */
 function normalizeAtivo(ativo) {
   const obj = deepNormalize(ativo);
   const identification = obj.Identification || {};
-  const fundamental = obj.FundamentalData || {};
+  const indicators = obj.Indicators || {};
   const dailyData = obj.DailyData && obj.DailyData.Day ? obj.DailyData.Day : [];
 
+  // Extrair primeiros 10 dias de preços e volumes
+  const days = Array.isArray(dailyData) ? dailyData : (dailyData ? [dailyData] : []);
+  const prices = days.map(d => {
+    const normalized = deepNormalize(d);
+    return normalized.ClosingPrice;
+  }).slice(0, 10);
+  
+  const volumes = days.map(d => {
+    const normalized = deepNormalize(d);
+    return normalized.Volume;
+  }).slice(0, 10);
+
   return {
-    // Campos principais do crawler
+    // Identificação
     Ticker: obj.Ticker,
     Nome: identification.Name,
+    Sector: identification.Sector,
     
-    // Fundamental Data
-    MarketCap: fundamental.MarketCap,
-    ChangePercent: fundamental.ChangePercent,
-    PreviousClose: fundamental.PreviousClose,
-    Open: fundamental.Open,
-    DaysRange: fundamental.DaysRange,
-    Week52Range: fundamental.Week52Range,
-    PERatio: fundamental.PERatio,
-    EPS: fundamental.EPS,
-    Beta: fundamental.Beta,
+    // Indicadores
+    PriceSMA: indicators.PriceSMA,
+    AverageVolume: indicators.AverageVolume,
 
-    // Secções aninhadas (para modal de detalhes)
-    Identification: identification,
-    FundamentalData: fundamental,
-    DailyData: Array.isArray(dailyData) ? dailyData : [dailyData],
+    // Dados diários (para compatibilidade com detalhes)
+    Prices: prices,
+    Volumes: volumes,
+    DailyData: days,
 
     // Objeto completo normalizado
     raw: obj
   };
 }
 
-async function getXmlData(filters = {}) {
+async function getXmlData(queryType = 'allAssets', filters = {}) {
   return new Promise((resolve, reject) => {
     try {
       console.log(`[CONNECT] A Conectar ao XML Service gRPC em ${XML_SERVICE_GRPC_URL}...`);
       
       const client = getGrpcClient();
       
-      // XPath query para buscar todos os Assets
-      const xpathQuery = '//Asset';
+      // Diferentes XPath queries disponíveis
+      const xpathQueries = {
+        // 1. Simple Data Extraction
+        allAssets: '//Asset',
+        allNames: '//Identification/Name/text()',
+        allTickers: '//Asset/@Ticker',
+        allSMAPrices: '//Indicators/PriceSMA/text()',
+        allSectors: '//Asset/Identification/Sector/text()',
+        
+        // 2. Conditional Queries (Filters)
+        technologySector: "//Asset[Identification/Sector='Technology']/Identification/Name/text()",
+        financialSector: "//Asset[Identification/Sector='Financial Services']/Identification/Name/text()",
+        smaAbove150: '//Asset[Indicators/PriceSMA > 150]/@Ticker',
+        smaBelow100: '//Asset[Indicators/PriceSMA < 100]',
+        
+        // 3. Specific Asset Queries
+        aapl: "//Asset[@Ticker='AAPL']",
+        tsla: "//Asset[@Ticker='TSLA']",
+        msft: "//Asset[@Ticker='MSFT']",
+        appleByName: "//Asset[Identification/Name='Apple Inc.']",
+        
+        // 4. Hierarchical/Deep Queries
+        day10Prices: "//Day[@index='10']/ClosingPrice/text()",
+        aaplVolumes: "//Asset[@Ticker='AAPL']/DailyData/Day/Volume/text()",
+        tslaDay1Currency: "//Asset[@Ticker='TSLA']/DailyData/Day[@index='1']/ClosingPrice/@Currency",
+        allDailyPrices: '//DailyData/Day/ClosingPrice/text()',
+        
+        // 5. Advanced/Structural Queries
+        countAssets: 'count(//Asset)',
+        jobID: '/MarketReport/@JobID',
+        reportMetadata: '/MarketReport'
+      };
+      
+      // Se queryType começa com '//' ou '/', é uma query XPath custom
+      let xpathQuery;
+      if (queryType.startsWith('//') || queryType.startsWith('/') || queryType.startsWith('count(')) {
+        xpathQuery = queryType;
+        console.log(`[XPATH CUSTOM] Query: ${xpathQuery}`);
+      } else {
+        // Selecionar XPath baseado no preset ou usar padrão
+        xpathQuery = xpathQueries[queryType] || xpathQueries.allAssets;
+        console.log(`[XPATH PRESET] Tipo: ${queryType} | Query: ${xpathQuery}`);
+      }
       
       const call = client.GetQueryResult({ QueryString: xpathQuery });
       
@@ -153,12 +181,12 @@ async function getXmlData(filters = {}) {
       
       call.on('error', (err) => {
         console.error('[ERROR] Erro ao conectar XML Service gRPC:', err.message);
-        reject(err);
+        resolve([]);
       });
       
     } catch (error) {
       console.error('[ERROR] Erro ao conectar XML Service:', error.message);
-      reject(error);
+      resolve([]);
     }
   });
 }

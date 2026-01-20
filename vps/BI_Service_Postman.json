@@ -43,10 +43,10 @@
       ]
     },
     {
-      "name": "Queries - GET",
+      "name": "User-Friendly Queries (convertidas para XPath)",
       "item": [
         {
-          "name": "Get All Assets",
+          "name": "GET - All Assets",
           "request": {
             "method": "GET",
             "header": [],
@@ -57,17 +57,17 @@
               "port": "8000",
               "path": ["api", "query"]
             },
-            "description": "Retorna todos os ativos (sem filtro)"
+            "description": "Retorna todos os ativos (convertido para XPath: //Asset)"
           },
           "response": []
         },
         {
-          "name": "Filter by Ticker (NVDA)",
+          "name": "GET - Filter by Ticker (AAPL)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "http://localhost:8000/api/query?q=symbol=NVDA",
+              "raw": "http://localhost:8000/api/query?q=symbol=AAPL",
               "protocol": "http",
               "host": ["localhost"],
               "port": "8000",
@@ -75,21 +75,21 @@
               "query": [
                 {
                   "key": "q",
-                  "value": "symbol=NVDA"
+                  "value": "symbol=AAPL"
                 }
               ]
             },
-            "description": "Filtra ativos por Ticker (NVDA, AAPL, MSFT, JPM, WMT)"
+            "description": "Filtra por Ticker (convertido para XPath: //Asset[@Ticker='AAPL'])"
           },
           "response": []
         },
         {
-          "name": "Filter by Type (Tecnologia)",
+          "name": "GET - Filter by Sector",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "http://localhost:8000/api/query?q=tipo=Tecnologia",
+              "raw": "http://localhost:8000/api/query?q=sector=Technology",
               "protocol": "http",
               "host": ["localhost"],
               "port": "8000",
@@ -97,21 +97,21 @@
               "query": [
                 {
                   "key": "q",
-                  "value": "tipo=Tecnologia"
+                  "value": "sector=Technology"
                 }
               ]
             },
-            "description": "Filtra ativos por Tipo (Tecnologia, Financeiro, Bens de Consumo)"
+            "description": "Filtra por setor (convertido para XPath: //Asset[Identification/Sector='Technology'])"
           },
           "response": []
         },
         {
-          "name": "Filter by Ranking",
+          "name": "GET - Search by Name",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "http://localhost:8000/api/query?q=ranking=1",
+              "raw": "http://localhost:8000/api/query?q=name=Apple",
               "protocol": "http",
               "host": ["localhost"],
               "port": "8000",
@@ -119,21 +119,21 @@
               "query": [
                 {
                   "key": "q",
-                  "value": "ranking=1"
+                  "value": "name=Apple"
                 }
               ]
             },
-            "description": "Filtra ativos por Ranking"
+            "description": "Busca por nome (convertido para XPath com contains)"
           },
           "response": []
         },
         {
-          "name": "Multiple Filters (Tecnologia + Ranking 1)",
+          "name": "GET - Multiple Filters",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "http://localhost:8000/api/query?q=tipo=Tecnologia ranking=1",
+              "raw": "http://localhost:8000/api/query?q=symbol=AAPL sector=Technology",
               "protocol": "http",
               "host": ["localhost"],
               "port": "8000",
@@ -141,21 +141,16 @@
               "query": [
                 {
                   "key": "q",
-                  "value": "tipo=Tecnologia ranking=1"
+                  "value": "symbol=AAPL sector=Technology"
                 }
               ]
             },
-            "description": "Combina múltiplos filtros (separados por espaço)"
+            "description": "Múltiplos filtros (convertido para XPath: //Asset[@Ticker='AAPL' and Identification/Sector='Technology'])"
           },
           "response": []
-        }
-      ]
-    },
-    {
-      "name": "Queries - POST",
-      "item": [
+        },
         {
-          "name": "Query All Assets (POST)",
+          "name": "POST - Query Assets",
           "request": {
             "method": "POST",
             "header": [
@@ -167,7 +162,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"query\": \"\"\n}"
+              "raw": "{\n  \"query\": \"symbol=MSFT\"\n}"
             },
             "url": {
               "raw": "http://localhost:8000/api/query",
@@ -176,12 +171,12 @@
               "port": "8000",
               "path": ["api", "query"]
             },
-            "description": "Retorna todos os ativos usando POST"
+            "description": "Query via POST (convertido para XPath internamente)"
           },
           "response": []
         },
         {
-          "name": "Filter by Ticker (POST)",
+          "name": "POST - Multiple Filters",
           "request": {
             "method": "POST",
             "header": [
@@ -193,7 +188,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"query\": \"symbol=NVDA\"\n}"
+              "raw": "{\n  \"query\": \"sector=Technology name=Microsoft\"\n}"
             },
             "url": {
               "raw": "http://localhost:8000/api/query",
@@ -202,59 +197,7 @@
               "port": "8000",
               "path": ["api", "query"]
             },
-            "description": "Filtra ativos por Ticker usando POST"
-          },
-          "response": []
-        },
-        {
-          "name": "Filter by Type (POST)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"query\": \"tipo=Tecnologia\"\n}"
-            },
-            "url": {
-              "raw": "http://localhost:8000/api/query",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "8000",
-              "path": ["api", "query"]
-            },
-            "description": "Filtra ativos por Tipo usando POST"
-          },
-          "response": []
-        },
-        {
-          "name": "Multiple Filters (POST)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"query\": \"tipo=Tecnologia ranking=1\"\n}"
-            },
-            "url": {
-              "raw": "http://localhost:8000/api/query",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "8000",
-              "path": ["api", "query"]
-            },
-            "description": "Combina múltiplos filtros usando POST"
+            "description": "Múltiplos filtros via POST (convertido para XPath com AND)"
           },
           "response": []
         }
@@ -275,9 +218,506 @@
               "port": "8000",
               "path": ["api", "filters"]
             },
-            "description": "Retorna os filtros disponíveis (tickers, tipos, rankings)"
+            "description": "Retorna os filtros disponíveis (tickers, sectors)"
           },
           "response": []
+        }
+      ]
+    },
+    {
+      "name": "XPath Queries",
+      "item": [
+        {
+          "name": "1. Simple Data Extraction",
+          "item": [
+            {
+              "name": "All Company Names",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?query=//Identification/Name/text()",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "query",
+                      "value": "//Identification/Name/text()"
+                    }
+                  ]
+                },
+                "description": "Custom XPath: //Identification/Name/text() - Extrai todos os nomes de empresas"
+              },
+              "response": []
+            },
+            {
+              "name": "All Tickers",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=allTickers",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "allTickers"
+                    }
+                  ]
+                },
+                "description": "Preset: allTickers - XPath: //Asset/@Ticker - Retorna todos os tickers"
+              },
+              "response": []
+            },
+            {
+              "name": "All SMA Prices (COBOL)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=allSMAPrices",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "allSMAPrices"
+                    }
+                  ]
+                },
+                "description": "Preset: allSMAPrices - XPath: //Indicators/PriceSMA/text() - Retorna todos os preços SMA calculados pelo COBOL"
+              },
+              "response": []
+            },
+            {
+              "name": "All Sectors",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=allSectors",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "allSectors"
+                    }
+                  ]
+                },
+                "description": "Preset: allSectors - XPath: //Asset/Identification/Sector/text() - Lista todos os setores"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "2. Conditional Queries (Filters)",
+          "item": [
+            {
+              "name": "Technology Sector Companies",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=technologySector",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "technologySector"
+                    }
+                  ]
+                },
+                "description": "Preset: technologySector - XPath: //Asset[Identification/Sector='Technology']/Identification/Name/text() - Empresas do setor Technology"
+              },
+              "response": []
+            },
+            {
+              "name": "Financial Sector Companies",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=financialSector",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "financialSector"
+                    }
+                  ]
+                },
+                "description": "Preset: financialSector - XPath: //Asset[Identification/Sector='Financial Services']/Identification/Name/text()"
+              },
+              "response": []
+            },
+            {
+              "name": "SMA Above 150 EUR",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=smaAbove150",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "smaAbove150"
+                    }
+                  ]
+                },
+                "description": "Preset: smaAbove150 - XPath: //Asset[Indicators/PriceSMA > 150]/@Ticker - Ativos com SMA acima de 150€"
+              },
+              "response": []
+            },
+            {
+              "name": "SMA Below 100 EUR",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=smaBelow100",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "smaBelow100"
+                    }
+                  ]
+                },
+                "description": "Preset: smaBelow100 - XPath: //Asset[Indicators/PriceSMA < 100] - Ativos com SMA abaixo de 100€"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "3. Specific Asset Queries",
+          "item": [
+            {
+              "name": "AAPL (by Ticker)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=aapl",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "aapl"
+                    }
+                  ]
+                },
+                "description": "Preset: aapl - XPath: //Asset[@Ticker='AAPL'] - Apple por ticker"
+              },
+              "response": []
+            },
+            {
+              "name": "Apple Inc (by Name)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=appleByName",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "appleByName"
+                    }
+                  ]
+                },
+                "description": "Preset: appleByName - XPath: //Asset[Identification/Name='Apple Inc.'] - Apple por nome"
+              },
+              "response": []
+            },
+            {
+              "name": "TSLA",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=tsla",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "tsla"
+                    }
+                  ]
+                },
+                "description": "Preset: tsla - XPath: //Asset[@Ticker='TSLA'] - Tesla"
+              },
+              "response": []
+            },
+            {
+              "name": "MSFT",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=msft",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "msft"
+                    }
+                  ]
+                },
+                "description": "Preset: msft - XPath: //Asset[@Ticker='MSFT'] - Microsoft"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "4. Hierarchical/Deep Queries",
+          "item": [
+            {
+              "name": "Day 10 Closing Prices",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=day10Prices",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "day10Prices"
+                    }
+                  ]
+                },
+                "description": "Preset: day10Prices - XPath: //Day[@index='10']/ClosingPrice/text() - Preços de fecho do 10º dia"
+              },
+              "response": []
+            },
+            {
+              "name": "AAPL All Volumes",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=aaplVolumes",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "aaplVolumes"
+                    }
+                  ]
+                },
+                "description": "Preset: aaplVolumes - XPath: //Asset[@Ticker='AAPL']/DailyData/Day/Volume/text() - Todos os volumes da Apple"
+              },
+              "response": []
+            },
+            {
+              "name": "TSLA Day 1 Currency",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=tslaDay1Currency",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "tslaDay1Currency"
+                    }
+                  ]
+                },
+                "description": "Preset: tslaDay1Currency - XPath: //Asset[@Ticker='TSLA']/DailyData/Day[@index='1']/ClosingPrice/@Currency - Moeda do preço da Tesla no dia 1"
+              },
+              "response": []
+            },
+            {
+              "name": "All Daily Prices",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=allDailyPrices",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "allDailyPrices"
+                    }
+                  ]
+                },
+                "description": "Preset: allDailyPrices - XPath: //DailyData/Day/ClosingPrice/text() - Todos os preços diários"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "5. Advanced/Structural Queries",
+          "item": [
+            {
+              "name": "Count Assets",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=countAssets",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "countAssets"
+                    }
+                  ]
+                },
+                "description": "Preset: countAssets - XPath: count(//Asset) - Conta número total de ativos"
+              },
+              "response": []
+            },
+            {
+              "name": "Report Job ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=jobID",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "jobID"
+                    }
+                  ]
+                },
+                "description": "Preset: jobID - XPath: /MarketReport/@JobID - Retorna ID do job que gerou o relatório"
+              },
+              "response": []
+            },
+            {
+              "name": "Report Metadata",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=reportMetadata",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "reportMetadata"
+                    }
+                  ]
+                },
+                "description": "Preset: reportMetadata - XPath: /MarketReport - Retorna metadados do relatório completo"
+              },
+              "response": []
+            },
+            {
+              "name": "Custom XPath Example",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?query=//Asset[Indicators/AverageVolume > 50000000]/@Ticker",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "query",
+                      "value": "//Asset[Indicators/AverageVolume > 50000000]/@Ticker"
+                    }
+                  ]
+                },
+                "description": "Custom XPath: //Asset[Indicators/AverageVolume > 50000000]/@Ticker - Ativos com volume médio acima de 50M"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Quick Tests",
+          "item": [
+            {
+              "name": "All Assets",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:8000/api/xpath?type=allAssets",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "xpath"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "allAssets"
+                    }
+                  ]
+                },
+                "description": "Preset: allAssets - XPath: //Asset - Retorna todos os ativos completos"
+              },
+              "response": []
+            }
+          ]
         }
       ]
     }

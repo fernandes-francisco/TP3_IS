@@ -42,10 +42,14 @@
 
     <main class="layout">
       <section class="panel query-panel">
+        <h2>Pesquisa Rápida</h2>
         <div class="query-form-horizontal">
-          <input type="text" id="query-input" class="query-input-field" placeholder="Ex: symbol=AAPL name=Apple" />
-          <button class="primary" onclick="executeManualQuery()">Executar</button>
+          <input type="text" id="query-input" class="query-input-field" placeholder="Ex: symbol=AAPL, name=Apple, sector=Technology" />
+          <button class="primary" onclick="executeManualQuery()">Pesquisar</button>
         </div>
+        <p style="font-size: 12px; color: #64748b; margin-top: 8px;">
+          Exemplos: <code>symbol=AAPL</code>, <code>sector=Technology</code>, <code>name=Apple</code>, <code>MSFT</code>
+        </p>
       </section>
 
       <div class="layout-grid">

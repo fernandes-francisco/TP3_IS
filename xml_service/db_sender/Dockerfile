@@ -1,22 +1,23 @@
-#BUILD
-FROM rust:1.88-slim-bookworm as builder
+#Build
+FROM rust:1.83-slim-bookworm AS builder 
 
 WORKDIR /app
+RUN apt-get update && \
+    apt-get install -y pkg-config libssl-dev ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
-RUN cargo build --release -p converter
-#RUNTIME
-FROM debian:bookworm-slim
+RUN cargo build --release -p db_sender
 
+#Run
+FROM debian:bookworm-slim
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    ca-certificates \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+    apt-get install -y libssl-dev ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/target/release/converter /usr/local/bin/converter
+COPY --from=builder /app/target/release/db_sender /usr/local/bin/db_sender
 
-CMD ["converter"]
+CMD ["db_sender"]

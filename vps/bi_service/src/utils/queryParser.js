@@ -1,25 +1,29 @@
-/**
- * Parser simples para queries do formato: "Ticker='NVDA'" ou "Tipo='Tecnologia'"
- * @param {string} queryString - String da query
- * @returns {Object} Objeto com filtros { campo: valor }
- */
-function parseQuery(queryString) {
+function parseQueryToXPath(queryString) {
   if (!queryString || queryString.trim() === '') {
-    return {};
+    return '//Asset';
+  }
+
+  const trimmed = queryString.trim();
+
+  // Se o utilizador já enviou XPath direto, devolver tal como está
+  if (trimmed.startsWith('//') || trimmed.startsWith('/') || trimmed.startsWith('count(')) {
+    return trimmed;
   }
 
   const normalized = queryString.trim();
-  const filters = {};
+  const conditions = [];
 
-  // 1) Suporta formato com aspas: Campo="valor" ou Campo='valor'
+  // Formato com aspas: Campo="valor" ou Campo='valor'
   const quotedRegex = /(\w+)\s*=\s*['"]([^'"]+)['"]/g;
   let match;
   while ((match = quotedRegex.exec(normalized)) !== null) {
-    filters[match[1]] = match[2];
+    const key = match[1].toLowerCase();
+    const value = match[2];
+    const xpathCondition = buildXPathCondition(key, value);
+    if (xpathCondition) conditions.push(xpathCondition);
   }
 
-  // 2) Suporta formato sem aspas e case-insensitive (ex: symbol=NVDA, sector=technology)
-  //    separando por , ou & ou espaços
+  // Formato sem aspas: symbol=AAPL, sector=technology
   const parts = normalized.split(/[,&\s]+/).filter(Boolean);
   let hasStructuredFilters = false;
   
@@ -33,96 +37,55 @@ function parseQuery(queryString) {
 
     if (!value) return;
 
-    // Mapear aliases para campos do dataset
-    const keyMap = {
-      // Ticker
-      symbol: 'Ticker',
-      ticker: 'Ticker',
-      
-      // Nome
-      nome: 'Nome',
-      name: 'Nome',
-      
-      // Market Cap
-      marketcap: 'MarketCap',
-      cap: 'MarketCap'
-    };
-
-    const mappedKey = keyMap[key] || rawKey;
-    // Se já havia capturado via regex com aspas, não sobrescreve
-    if (filters[mappedKey] === undefined) {
-      filters[mappedKey] = value;
+    const xpathCondition = buildXPathCondition(key, value);
+    if (xpathCondition && !conditions.includes(xpathCondition)) {
+      conditions.push(xpathCondition);
     }
   });
 
-  // 3) Se não há filtros estruturados (campo=valor), tratar como busca livre
-  if (!hasStructuredFilters && Object.keys(filters).length === 0 && normalized) {
-    filters._freeSearch = normalized;
+  // Se não há filtros estruturados, buscar em múltiplos campos
+  if (!hasStructuredFilters && conditions.length === 0 && normalized) {
+    // Busca livre: procurar em ticker, nome e sector
+    const freeSearch = normalized.replace(/'/g, "\\'");
+    const freeLower = freeSearch.toLowerCase();
+    return `//Asset[@Ticker='${freeSearch}' or contains(translate(Identification/Name, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '${freeLower}') or contains(translate(Identification/Sector, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '${freeLower}')]`;
   }
 
-  return filters;
-}
-
-/**
- * Filtra array de ativos baseado nos filtros fornecidos
- * @param {Array} ativos - Array de ativos
- * @param {Object} filters - Objeto com filtros { campo: valor }
- * @returns {Array} Ativos filtrados
- */
-function filterAtivos(ativos, filters) {
-  if (!filters || Object.keys(filters).length === 0) {
-    return ativos;
+  // Construir XPath final
+  if (conditions.length === 0) {
+    return '//Asset';
+  } else if (conditions.length === 1) {
+    return `//Asset[${conditions[0]}]`;
+  } else {
+    return `//Asset[${conditions.join(' and ')}]`;
   }
-
-  return ativos.filter((ativo) => {
-    for (const [key, value] of Object.entries(filters)) {
-      // Suportar ambas as estruturas: campo direto ou aninhado em Identification
-      let ativoValue;
-      
-      if (key === 'Nome') {
-        // Pode estar em ativo.Nome ou em ativo.Identification.Name
-        ativoValue = ativo[key] || (ativo.Identification && ativo.Identification.Name);
-      } else if (key === '_freeSearch') {
-        // Busca livre: procura em Ticker e Nome
-        const searchTerm = String(value || '').toLowerCase().trim();
-        const ticker = String(ativo.Ticker || '').toLowerCase();
-        const nome = String(ativo.Nome || '').toLowerCase();
-        
-        const matches = ticker.includes(searchTerm) || nome.includes(searchTerm);
-        
-        if (!matches) {
-          return false;
-        }
-        continue;
-      } else {
-        // Outros campos
-        ativoValue = ativo[key];
-      }
-      
-      if (Array.isArray(ativoValue)) {
-        ativoValue = ativoValue[0];
-      }
-      
-      const ativoStr = String(ativoValue || '').toLowerCase().trim();
-      const filterStr = String(value || '').toLowerCase().trim();
-
-      // Para Ticker: exact match
-      // Para Nome: partial match (contains)
-      let matches = false;
-      if (key === 'Ticker') {
-        matches = ativoStr === filterStr;
-      } else {
-        // Partial match (contains)
-        matches = ativoStr.includes(filterStr);
-      }
-
-      if (!matches) {
-        return false;
-      }
-    }
-    return true;
-  });
 }
 
-module.exports = { parseQuery, filterAtivos };
+function buildXPathCondition(key, value) {
+  // Mapear aliases para campos XPath
+  const keyMap = {
+    symbol: 'Ticker',
+    ticker: 'Ticker',
+    nome: 'Name',
+    name: 'Name',
+    sector: 'Sector',
+    setor: 'Sector'
+  };
+
+  const mappedKey = keyMap[key] || key;
+  const escapedValue = value.replace(/'/g, "\\'");
+
+  switch (mappedKey) {
+    case 'Ticker':
+      return `@Ticker='${escapedValue}'`;
+    case 'Name':
+      return `contains(translate(Identification/Name, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '${escapedValue.toLowerCase()}')`;
+    case 'Sector':
+      return `Identification/Sector='${escapedValue}'`;
+    default:
+      return null;
+  }
+}
+
+module.exports = { parseQueryToXPath };
 

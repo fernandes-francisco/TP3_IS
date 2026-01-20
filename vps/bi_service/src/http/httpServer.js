@@ -43,22 +43,17 @@ function createHttpServer(queryService) {
 
     type Filters {
       tickers: [String!]!
-      tipos: [String!]!
-      rankings: [String!]!
+      sectors: [String!]!
     }
 
     type Ativo {
       Ticker: String
       Nome: String
-      MarketCap: String
-      ChangePercent: String
-      PreviousClose: String
-      Open: String
-      DaysRange: String
-      Week52Range: String
-      PERatio: String
-      EPS: String
-      Beta: String
+      Sector: String
+      PriceSMA: String
+      AverageVolume: String
+      Prices: [String!]
+      Volumes: [String!]
       raw: String
     }
 
@@ -101,33 +96,27 @@ function createHttpServer(queryService) {
       try {
         const ativos = await getXmlData();
         const tickers = [...new Set(ativos.map(a => a.Ticker).filter(Boolean))].sort();
-        const tipos = [];
-        const rankings = [];
-        return { tickers, tipos, rankings };
+        const sectors = [...new Set(ativos.map(a => a.Sector).filter(Boolean))].sort();
+        return { tickers, sectors };
       } catch (e) {
         console.error('[FILTERS ERROR]', e.message);
-        return { tickers: [], tipos: [], rankings: [] };
+        return { tickers: [], sectors: [] };
       }
     },
     search: async ({ q, limit, offset }) => {
       const { getXmlData } = require('../clients/xmlServiceClient');
-      const { parseQuery, filterAtivos } = require('../utils/queryParser');
+      const { parseQueryToXPath } = require('../utils/queryParser');
       try {
-        const ativos = await getXmlData();
-        const filters = parseQuery(q || '');
-        const resultados = q ? filterAtivos(ativos, filters) : ativos;
-        const mapped = resultados.map(a => ({
+        const xpathQuery = parseQueryToXPath(q || '');
+        const ativos = await getXmlData(xpathQuery);
+        const mapped = ativos.map(a => ({
           Ticker: a.Ticker,
           Nome: a.Nome,
-          MarketCap: a.MarketCap,
-          ChangePercent: a.ChangePercent,
-          PreviousClose: a.PreviousClose,
-          Open: a.Open,
-          DaysRange: a.DaysRange,
-          Week52Range: a.Week52Range,
-          PERatio: a.PERatio,
-          EPS: a.EPS,
-          Beta: a.Beta,
+          Sector: a.Sector,
+          PriceSMA: a.PriceSMA,
+          AverageVolume: a.AverageVolume,
+          Prices: a.Prices,
+          Volumes: a.Volumes,
           raw: JSON.stringify(a)
         }));
         return paginate(mapped, limit, offset);
@@ -148,15 +137,11 @@ function createHttpServer(queryService) {
         const mapped = resultados.map(a => ({
           Ticker: a.Ticker,
           Nome: a.Nome,
-          MarketCap: a.MarketCap,
-          ChangePercent: a.ChangePercent,
-          PreviousClose: a.PreviousClose,
-          Open: a.Open,
-          DaysRange: a.DaysRange,
-          Week52Range: a.Week52Range,
-          PERatio: a.PERatio,
-          EPS: a.EPS,
-          Beta: a.Beta,
+          Sector: a.Sector,
+          PriceSMA: a.PriceSMA,
+          AverageVolume: a.AverageVolume,
+          Prices: a.Prices,
+          Volumes: a.Volumes,
           raw: JSON.stringify(a)
         }));
         return paginate(mapped, limit, offset);
@@ -173,28 +158,56 @@ function createHttpServer(queryService) {
     graphiql: true
   }));
 
-  // Endpoint principal de query
+  // Endpoint XPath para queries específicas (preset ou custom)
+  app.get('/api/xpath', async (req, res) => {
+    try {
+      // Aceita 'type' para presets ou 'query' para XPath custom
+      const queryType = req.query.type || req.query.query || 'allAssets';
+      console.log(`[XPATH] Query recebida: "${queryType}"`);
+
+      const { getXmlData } = require('../clients/xmlServiceClient');
+
+      const resultados = await getXmlData(queryType);
+      console.log(`[XPATH SUCCESS] ${resultados.length} resultado(s)`);
+
+      res.json({
+        success: true,
+        query: queryType,
+        count: resultados.length,
+        data: resultados,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('[XPATH ERROR]', error.message);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  // Endpoint principal de query (converte sintaxe user-friendly para XPath)
   app.get('/api/query', async (req, res) => {
     try {
       const queryString = req.query.q || '';
       console.log(`[HTTP] Query recebida: "${queryString}"`);
 
-      // Conectar ao XML Service e filtrar
       const { getXmlData } = require('../clients/xmlServiceClient');
-      const { parseQuery, filterAtivos } = require('../utils/queryParser');
+      const { parseQueryToXPath } = require('../utils/queryParser');
 
-      const ativos = await getXmlData();
-      console.log(`[HTTP SUCCESS] ${ativos.length} ativos carregados`);
+      // Converter para XPath
+      const xpathQuery = parseQueryToXPath(queryString);
+      console.log(`[HTTP] XPath gerado: ${xpathQuery}`);
 
-      // Parsear e filtrar
-      const filters = parseQuery(queryString);
-      const resultados = queryString ? filterAtivos(ativos, filters) : ativos;
-
-      console.log(`[HTTP] ${resultados.length} resultado(s) retornados`);
+      const resultados = await getXmlData(xpathQuery);
+      console.log(`[HTTP SUCCESS] ${resultados.length} resultado(s) retornados`);
 
       res.json({
         success: true,
         query: queryString,
+        xpath: xpathQuery,
         count: resultados.length,
         data: resultados,
         timestamp: new Date().toISOString()
@@ -210,36 +223,26 @@ function createHttpServer(queryService) {
     }
   });
 
-  // Endpoint para query em POST
+  // Endpoint para query em POST (converte sintaxe user-friendly para XPath)
   app.post('/api/query', async (req, res) => {
     try {
       const queryString = req.body.query || '';
       console.log(`[HTTP POST] Query recebida: "${queryString}"`);
 
       const { getXmlData } = require('../clients/xmlServiceClient');
-      const { parseQuery, filterAtivos } = require('../utils/queryParser');
+      const { parseQueryToXPath } = require('../utils/queryParser');
 
-      let ativos = [];
-      try {
-        ativos = await getXmlData();
-        console.log(`[HTTP POST SUCCESS] ${ativos.length} ativos carregados`);
-      } catch (error) {
-        console.error('[HTTP POST WARNING] XML Service indisponivel');
-        ativos = [
-          { Ticker: 'NVDA', Tipo: 'Tecnologia', Ranking: '1', NomeCompleto: 'NVIDIA Corporation' },
-          { Ticker: 'AAPL', Tipo: 'Tecnologia', Ranking: '2', NomeCompleto: 'Apple Inc' },
-          { Ticker: 'MSFT', Tipo: 'Tecnologia', Ranking: '3', NomeCompleto: 'Microsoft Corporation' }
-        ];
-      }
+      // Converter para XPath
+      const xpathQuery = parseQueryToXPath(queryString);
+      console.log(`[HTTP POST] XPath gerado: ${xpathQuery}`);
 
-      const filters = parseQuery(queryString);
-      const resultados = queryString ? filterAtivos(ativos, filters) : ativos;
-
-      console.log(`[HTTP POST] ${resultados.length} resultado(s) retornados`);
+      const resultados = await getXmlData(xpathQuery);
+      console.log(`[HTTP POST SUCCESS] ${resultados.length} resultado(s) retornados`);
 
       res.json({
         success: true,
         query: queryString,
+        xpath: xpathQuery,
         count: resultados.length,
         data: resultados,
         timestamp: new Date().toISOString()
@@ -260,44 +263,25 @@ function createHttpServer(queryService) {
     try {
       const { getXmlData } = require('../clients/xmlServiceClient');
 
-      let ativos = [];
-      try {
-        ativos = await getXmlData();
-      } catch (error) {
-        // Mock data como fallback
-        ativos = [
-          { Ticker: 'NVDA', Tipo: 'Tecnologia', Ranking: '1', NomeCompleto: 'NVIDIA Corporation' },
-          { Ticker: 'AAPL', Tipo: 'Tecnologia', Ranking: '2', NomeCompleto: 'Apple Inc' },
-          { Ticker: 'MSFT', Tipo: 'Tecnologia', Ranking: '3', NomeCompleto: 'Microsoft Corporation' },
-          { Ticker: 'JPM', Tipo: 'Financeiro', Ranking: '1', NomeCompleto: 'JPMorgan Chase & Co' },
-          { Ticker: 'WMT', Tipo: 'Bens de Consumo', Ranking: '2', NomeCompleto: 'Walmart Inc' }
-        ];
-      }
+      const ativos = await getXmlData();
 
       // Extrair valores únicos para cada campo
       const tickers = [...new Set(ativos.map(a => a.Ticker).filter(v => v))].sort();
-      const tipos = [...new Set(ativos.map(a => a.Tipo).filter(v => v))].sort();
-      const rankings = [...new Set(ativos.map(a => a.Ranking).filter(v => v))].sort((a, b) => {
-        const numA = parseInt(a) || 0;
-        const numB = parseInt(b) || 0;
-        return numA - numB;
-      });
+      const sectors = [...new Set(ativos.map(a => a.Sector).filter(v => v))].sort();
 
       res.json({
         tickers: tickers,
-        tipos: tipos,
-        rankings: rankings,
+        sectors: sectors,
         availableFilters: [
-          { name: 'Ticker', type: 'string', example: "symbol='NVDA'" },
-          { name: 'Tipo', type: 'string', example: "tipo='Tecnologia'" },
-          { name: 'Ranking', type: 'number', example: "ranking='1'" },
-          { name: 'NomeCompleto', type: 'string', example: "name='NVIDIA Corporation'" }
+          { name: 'Ticker', type: 'string', example: "symbol='AAPL'" },
+          { name: 'Sector', type: 'string', example: "sector='Technology'" },
+          { name: 'Nome', type: 'string', example: "name='Apple Inc'" }
         ],
         queryFormat: "Use formato: Campo='valor'",
         examples: [
           { description: 'Retornar todos', query: '' },
-          { description: 'Filtrar por Ticker', query: "symbol='NVDA'" },
-          { description: 'Filtrar por Tipo', query: "tipo='Tecnologia'" }
+          { description: 'Filtrar por Ticker', query: "symbol='AAPL'" },
+          { description: 'Filtrar por Sector', query: "sector='Technology'" }
         ]
       });
     } catch (error) {

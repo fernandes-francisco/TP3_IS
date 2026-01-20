@@ -68,14 +68,14 @@ function sortAndDisplayResults() {
   
   if (currentSortOrder === 'asc') {
     sorted.sort(function(a, b) {
-      var priceA = parseFloat(a.MarketCap) || 0;
-      var priceB = parseFloat(b.MarketCap) || 0;
+      var priceA = parseFloat(a.PriceSMA) || 0;
+      var priceB = parseFloat(b.PriceSMA) || 0;
       return priceA - priceB;
     });
   } else if (currentSortOrder === 'desc') {
     sorted.sort(function(a, b) {
-      var priceA = parseFloat(a.MarketCap) || 0;
-      var priceB = parseFloat(b.MarketCap) || 0;
+      var priceA = parseFloat(a.PriceSMA) || 0;
+      var priceB = parseFloat(b.PriceSMA) || 0;
       return priceB - priceA;
     });
   }
@@ -108,12 +108,7 @@ function executeQuery(query) {
   // Guardar query e resetar paginação
   currentQuery = query;
   currentPage = 1;
-  paginationInfo = { total: 0, limit: itemsPerPage, offset: 0, count: 0 };
-
-  // Adicionar ao histórico se não estiver vazio
-  if (query && query.trim()) {
-    addToHistory(query);
-  }
+  paginationInfo = { total: 0, limit: itemsPerPage, offset: 0, count: 0, mode: 'graphql' };
 
   // GraphQL search query com paginação
   var offset = (currentPage - 1) * itemsPerPage;
@@ -121,7 +116,7 @@ function executeQuery(query) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        query: 'query($q:String, $limit:Int, $offset:Int){ search(q:$q, limit:$limit, offset:$offset){ total limit offset count data { Ticker Nome MarketCap ChangePercent PreviousClose Open DaysRange Week52Range PERatio EPS Beta raw } } }', 
+        query: 'query($q:String, $limit:Int, $offset:Int){ search(q:$q, limit:$limit, offset:$offset){ total limit offset count data { Ticker Nome Sector PriceSMA AverageVolume Prices Volumes raw } } }', 
         variables: { q: query, limit: itemsPerPage, offset: offset } 
       })
     })
@@ -150,9 +145,10 @@ function executeQuery(query) {
         return;
       }
       
-      paginationInfo = result;
+      paginationInfo = Object.assign({}, result, { mode: 'graphql' });
       currentResultsData = result.data || [];
       totalItems = result.total || 0;
+      addToHistory(query || '');
       document.getElementById('error-box').style.display = 'none';
       
       // Aplicar ordenação se houver
@@ -221,22 +217,31 @@ function showError(message) {
 }
 
 function displayResults(items, countEl, container) {
+  // Garantir que temos referências válidas ao DOM, mesmo se não forem passadas
+  var resolvedContainer = container || document.getElementById('results-container');
+  var resolvedCountEl = countEl || document.getElementById('results-count');
   var errorBox = document.getElementById('error-box');
+  var mode = paginationInfo.mode || 'graphql';
+
+  if (!resolvedContainer || !resolvedCountEl || !errorBox) {
+    console.error('Elementos do DOM não encontrados em displayResults');
+    return;
+  }
   
   if (!items || items.length === 0) {
     errorBox.style.display = 'block';
     errorBox.textContent = 'Nenhum resultado encontrado. Verifique os critérios de pesquisa (ticker ou nome).';
-    container.innerHTML = '<p class="placeholder">Sem dados.</p>';
-    countEl.textContent = '0';
+    resolvedContainer.innerHTML = '<p class="placeholder">Sem dados.</p>';
+    resolvedCountEl.textContent = '0';
     return;
   }
 
   // Limpar mensagem de erro se houver resultados
   errorBox.style.display = 'none';
-  countEl.textContent = String(paginationInfo.count) + ' de ' + String(paginationInfo.total);
+  resolvedCountEl.textContent = String(paginationInfo.count) + ' de ' + String(paginationInfo.total);
 
-  // Colunas a exibir: Ticker, Nome, MarketCap, ChangePercent
-  var displayColumns = ['Ticker', 'Nome', 'MarketCap', 'ChangePercent'];
+  // Colunas a exibir: Ticker, Nome, Sector, PriceSMA
+  var displayColumns = ['Ticker', 'Nome', 'Sector', 'PriceSMA'];
   
   var html = '<div class="table-wrapper"><table class="result-table">';
   html += '<thead><tr>';
@@ -255,7 +260,7 @@ function displayResults(items, countEl, container) {
   });
   html += '</tbody></table></div>';
 
-  // Adicionar paginação
+  // Paginação (GraphQL)
   var currentPageNum = currentPage;
   var totalPages = Math.ceil(paginationInfo.total / itemsPerPage);
   
@@ -272,10 +277,10 @@ function displayResults(items, countEl, container) {
   
   html += '</div>';
 
-  container.innerHTML = html;
+  resolvedContainer.innerHTML = html;
 
   // Adicionar listeners aos cliques nas linhas
-  var rows = container.querySelectorAll('.clickable-row');
+  var rows = resolvedContainer.querySelectorAll('.clickable-row');
   rows.forEach(function(row) {
     row.addEventListener('click', function() {
       var index = parseInt(this.getAttribute('data-index'), 10);
@@ -355,11 +360,11 @@ function loadGuidedFilters() {
   fetch(API_BASE_URL + '/graphql', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: 'query { filters { tickers tipos rankings } }' })
+      body: JSON.stringify({ query: 'query { filters { tickers sectors } }' })
     })
     .then(function(response) { return response.json(); })
     .then(function(graph) {
-      var data = graph.data && graph.data.filters ? graph.data.filters : { tickers: [], tipos: [], rankings: [] };
+      var data = graph.data && graph.data.filters ? graph.data.filters : { tickers: [], sectors: [] };
       populateGuidedSelects(data);
     })
     .catch(function(error) {

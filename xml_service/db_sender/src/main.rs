@@ -1,8 +1,11 @@
 use anyhow::{Context, Result};
+use native_tls::TlsConnector;
+use postgres_native_tls::MakeTlsConnector;
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use std::env;
-use tokio_postgres::NoTls;
+use std::time::Duration;
+use tokio_postgres::Client;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct PipelineMsg {
@@ -21,11 +24,15 @@ struct WebhookPayload {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    println!("DB Sender Service Starting...");
+    
     let redis_host = env::var("REDIS_HOST").context("REDIS_HOST missing")?;
     let redis_port = env::var("REDIS_PORT").unwrap_or("6379".to_string());
     let redis_password = env::var("REDIS_PASSWORD").unwrap_or_default();
     let db_url = env::var("DATABASE_URL").context("DATABASE_URL missing")?;
     let webhook_url = env::var("WEBHOOK_URL").context("WEBHOOK_URL missing")?;
+
+    println!("Environment variables loaded successfully");
 
     let redis_url = if !redis_password.is_empty() {
         format!("redis://:{}@{}:{}", redis_password, redis_host, redis_port)
@@ -33,18 +40,80 @@ async fn main() -> Result<()> {
         format!("redis://{}:{}", redis_host, redis_port)
     };
 
-    let redis_client = redis::Client::open(redis_url)?;
-    let mut redis_con = redis_client.get_tokio_connection().await?;
-
-    let (db_client, connection) = tokio_postgres::connect(&db_url, NoTls).await?;
-
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("Database connection error: {}", e);
+    println!("Connecting to Redis at {}:{}...", redis_host, redis_port);
+    let redis_client = redis::Client::open(redis_url.clone())
+        .context("Failed to create Redis client")?;
+    
+    // Retry logic for Redis connection
+    let mut redis_con = None;
+    for attempt in 1..=10 {
+        match redis_client.get_tokio_connection().await {
+            Ok(conn) => {
+                redis_con = Some(conn);
+                println!("Connected to Redis successfully");
+                break;
+            }
+            Err(e) => {
+                eprintln!("Redis connection attempt {}/10 failed: {}", attempt, e);
+                if attempt < 10 {
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                } else {
+                    return Err(e).context("Failed to connect to Redis after 10 attempts");
+                }
+            }
         }
-    });
+    }
+    let mut redis_con = redis_con.unwrap();
 
-    let http_client = reqwest::Client::new();
+    println!("Connecting to PostgreSQL...");
+    let db_url = ensure_sslmode_require(&db_url);
+
+    // Masked logging
+    let masked = if let Some(start) = db_url.find("://") {
+        let rest = &db_url[start + 3..];
+        if let Some(at) = rest.find('@') {
+            format!("{}://***@{}", &db_url[..start], &rest[at+1..])
+        } else {
+            db_url.clone()
+        }
+    } else {
+        "***".to_string()
+    };
+    println!("DB URL (masked): {}", masked);
+
+    let tls_connector = TlsConnector::builder()
+        .danger_accept_invalid_certs(true)  // Accept Supabase pooler's certificate
+        .build()
+        .context("Failed to build TLS connector")?;
+    let tls = MakeTlsConnector::new(tls_connector);
+
+    // Retry logic for PostgreSQL connection using tokio-postgres + native-tls (Supabase compatible)
+    let db_client: Client = loop {
+        match tokio_postgres::connect(&db_url, tls.clone()).await {
+            Ok((client, connection)) => {
+                tokio::spawn(async move {
+                    if let Err(e) = connection.await {
+                        eprintln!("Database connection error: {}", e);
+                    }
+                });
+                println!("Connected to PostgreSQL successfully");
+                break client;
+            }
+            Err(e) => {
+                eprintln!("PostgreSQL connection failed: {}. Retrying in 3 seconds...", e);
+                use std::error::Error;
+                if let Some(src) = e.source() {
+                    eprintln!("  Caused by: {}", src);
+                }
+                tokio::time::sleep(Duration::from_secs(3)).await;
+            }
+        }
+    };
+
+    let http_client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .context("Failed to create HTTP client")?;
 
     println!("Persister Service Started. Listening on 'queue:db_persistence'...");
 
@@ -85,6 +154,16 @@ async fn main() -> Result<()> {
 
             check_completion(&mut redis_con, &http_client, &msg.job_id, &webhook_url, &final_status).await;
         }
+    }
+}
+
+fn ensure_sslmode_require(url: &str) -> String {
+    if url.contains("sslmode=") {
+        url.to_string()
+    } else if url.contains('?') {
+        format!("{url}&sslmode=require")
+    } else {
+        format!("{url}?sslmode=require")
     }
 }
 
