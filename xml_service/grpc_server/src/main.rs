@@ -1,5 +1,6 @@
 use tonic::{transport::Server, Request, Response, Status};
-use tokio_postgres::NoTls;
+use native_tls::TlsConnector;
+use postgres_native_tls::MakeTlsConnector;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio::sync::mpsc;
 use std::env;
@@ -31,8 +32,20 @@ impl XmlQueryService for MyXmlService {
 
         let (tx, rx) = mpsc::channel(10);
         tokio::spawn(async move {
+            // Build TLS connector for Supabase
+            let tls_connector = match TlsConnector::builder()
+                .danger_accept_invalid_certs(true)
+                .build() {
+                Ok(c) => c,
+                Err(e) => {
+                    let _ = tx.send(Err(Status::internal(format!("TLS Error: {}", e)))).await;
+                    return;
+                }
+            };
+            let tls = MakeTlsConnector::new(tls_connector);
+
             // 1. Connect to DB
-            match tokio_postgres::connect(&db_url, NoTls).await {
+            match tokio_postgres::connect(&db_url, tls).await {
                 Ok((client, connection)) => {
                     tokio::spawn(async move {
                         if let Err(e) = connection.await {
@@ -75,7 +88,7 @@ impl XmlQueryService for MyXmlService {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "[::]:50051".parse()?;
-    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let db_url = ensure_sslmode_require(&env::var("DATABASE_URL").expect("DATABASE_URL must be set"));
 
     let service = MyXmlService { db_url };
 
@@ -87,4 +100,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     Ok(())
+}
+
+fn ensure_sslmode_require(url: &str) -> String {
+    if url.contains("sslmode=") {
+        url.to_string()
+    } else if url.contains('?') {
+        format!("{}&sslmode=require", url)
+    } else {
+        format!("{}?sslmode=require", url)
+    }
 }
