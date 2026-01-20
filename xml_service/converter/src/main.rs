@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use aws_sdk_s3::Client as S3Client;
-use chrono::Utc; // Fixed: Added missing import
+use chrono::Utc;
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use std::env;
@@ -34,7 +34,6 @@ struct CsvRow {
     #[serde(rename = "Beta (5Y Monthly)")]
     beta: Option<String>,
 
-    // Dynamic Columns 1-10
     Price_1: Option<String>, Volume_1: Option<String>,
     Price_2: Option<String>, Volume_2: Option<String>,
     Price_3: Option<String>, Volume_3: Option<String>,
@@ -197,7 +196,7 @@ fn convert_to_xml(csv_data: String, job_id: &str, chunk_id: u32) -> Result<Strin
     let report = MarketReport {
         job_id: job_id.to_string(),
         chunk_id,
-        generated_at: Utc::now().to_rfc3339(), // Fixed: Utc is now imported
+        generated_at: Utc::now().to_rfc3339(),
         assets,
     };
 
@@ -212,27 +211,28 @@ fn convert_to_xml(csv_data: String, job_id: &str, chunk_id: u32) -> Result<Strin
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 1. Configuration
     let redis_host = env::var("REDIS_HOST").context("REDIS_HOST env var missing")?;
     let redis_port = env::var("REDIS_PORT").unwrap_or("6379".to_string());
+    let redis_password = env::var("REDIS_PASSWORD").unwrap_or_default();
     
-    // 2. Connect to AWS S3
     let aws_config = aws_config::load_from_env().await;
     let s3_client = S3Client::new(&aws_config);
 
-    // 3. Connect to Redis
-    let redis_url = format!("redis://{}:{}", redis_host, redis_port);
+    let redis_url = if !redis_password.is_empty() {
+        format!("redis://:{}@{}:{}", redis_password, redis_host, redis_port)
+    } else {
+        format!("redis://{}:{}", redis_host, redis_port)
+    };
+
     let client = redis::Client::open(redis_url)?;
     let mut con = client.get_tokio_connection().await?;
 
     println!("Converter Service Started. Listening on 'queue:csv_processing'...");
 
     loop {
-        // 4. Blocking Pop 
         let result: Option<(String, String)> = con.blpop("queue:csv_processing", 0.0).await?;
         
         if let Some((_, json_str)) = result {
-            // Parse Input
             let input: InputMsg = match serde_json::from_str(&json_str) {
                 Ok(msg) => msg,
                 Err(e) => {
@@ -243,24 +243,20 @@ async fn main() -> Result<()> {
             
             println!("Processing Job {} - Chunk {}", input.job_id, input.chunk_id);
 
-            // 5. Process
             match process_job(&s3_client, &input).await {
                 Ok(xml_output) => {
-                    // 6. Create Output Message
                     let output_msg = XmlMsg {
                         job_id: input.job_id,
                         chunk_id: input.chunk_id,
                         xml_content: xml_output,
                     };
 
-                    // 7. Push to Next Queue (Validation)
                     let output_json = serde_json::to_string(&output_msg)?;
                     let _: () = con.rpush("queue:xml_validation", output_json).await?;
                     println!("Converted & Pushed to Validation Queue.");
                 },
                 Err(e) => {
                     eprintln!("Failed to convert chunk: {}", e);
-                    // Optional: Push to a DLQ here
                 }
             }
         }
@@ -268,7 +264,6 @@ async fn main() -> Result<()> {
 }
 
 async fn process_job(s3: &S3Client, input: &InputMsg) -> Result<String> {
-    // Download from S3
     let obj = s3.get_object()
         .bucket(&input.s3_bucket)
         .key(&input.s3_key)
@@ -279,8 +274,6 @@ async fn process_job(s3: &S3Client, input: &InputMsg) -> Result<String> {
     let data = obj.body.collect().await?.into_bytes();
     let csv_str = String::from_utf8(data.to_vec())?;
 
-    // Convert
     let xml_str = convert_to_xml(csv_str, &input.job_id, input.chunk_id)?;
-    
     Ok(xml_str)
 }

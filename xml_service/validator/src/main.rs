@@ -5,12 +5,19 @@ use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use std::env;
 
-
 #[derive(Serialize, Deserialize, Debug)]
 struct XmlMsg {
     job_id: String,
     chunk_id: u32,
     xml_content: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct PipelineMsg {
+    job_id: String,
+    chunk_id: u32,
+    xml_content: String,
+    status: String, 
 }
 
 fn validate_schema(xml: &str) -> bool {
@@ -19,7 +26,6 @@ fn validate_schema(xml: &str) -> bool {
 
     let mut buf = Vec::new();
     
-    // Validation Flags
     let mut has_root = false;
     let mut has_job_id = false;
     let mut asset_count = 0;
@@ -32,7 +38,6 @@ fn validate_schema(xml: &str) -> bool {
                 match e.name().as_ref() {
                     b"MarketReport" => {
                         has_root = true;
-                        // Check if required attributes exist
                         if e.try_get_attribute("JobID").is_ok() && 
                            e.try_get_attribute("GeneratedAt").is_ok() {
                             has_job_id = true;
@@ -44,36 +49,26 @@ fn validate_schema(xml: &str) -> bool {
                     _ => (),
                 }
             }
-            Ok(Event::Eof) => break, // End of file
-            Err(_) => return false, // XML Syntax Error
+            Ok(Event::Eof) => break, 
+            Err(_) => return false, 
             _ => (),
         }
         buf.clear();
     }
 
-
-    
-    //Must have <MarketReport JobID="...">
     if !has_root || !has_job_id {
-        eprintln!("Validation Failed: Missing Root or JobID attribute");
         return false;
     }
 
-    //Must contain data
     if asset_count == 0 {
-        eprintln!("Validation Failed: XML is empty (0 Assets)");
         return false;
     }
 
-    //Must contain the Enriched Data
     if !has_fundamentals {
-        eprintln!("Validation Failed: Missing <FundamentalData> section");
         return false;
     }
 
-    //Must contain the Hierarchy 
     if !has_daily_data {
-        eprintln!("Validation Failed: Missing <DailyData> hierarchy");
         return false;
     }
 
@@ -82,23 +77,26 @@ fn validate_schema(xml: &str) -> bool {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 1. Setup
     let redis_host = env::var("REDIS_HOST").context("REDIS_HOST missing")?;
     let redis_port = env::var("REDIS_PORT").unwrap_or("6379".to_string());
+    let redis_password = env::var("REDIS_PASSWORD").unwrap_or_default();
     
-    let redis_url = format!("redis://{}:{}", redis_host, redis_port);
+    let redis_url = if !redis_password.is_empty() {
+        format!("redis://:{}@{}:{}", redis_password, redis_host, redis_port)
+    } else {
+        format!("redis://{}:{}", redis_host, redis_port)
+    };
+
     let client = redis::Client::open(redis_url)?;
     let mut con = client.get_tokio_connection().await?;
 
-    println!("Validator Service Started. Listening on 'queue:xml_validation'...");
+    println!("Validator Service Started (Manual Logic). Listening...");
 
     loop {
-        // 2. Receive Message
         let result: Option<(String, String)> = con.blpop("queue:xml_validation", 0.0).await?;
         
         if let Some((_, json_str)) = result {
-            // 3. Parse JSON wrapper
-            let msg: XmlMsg = match serde_json::from_str(&json_str) {
+            let in_msg: XmlMsg = match serde_json::from_str(&json_str) {
                 Ok(m) => m,
                 Err(e) => {
                     eprintln!("JSON Error: {}", e);
@@ -106,18 +104,24 @@ async fn main() -> Result<()> {
                 }
             };
 
-            println!("Inspecting Job {} - Chunk {}", msg.job_id, msg.chunk_id);
+            let is_valid = validate_schema(&in_msg.xml_content);
+            let status = if is_valid { "OK".to_string() } else { "ERRO_VALIDACAO".to_string() };
 
-            // 4. Run Logic
-            if validate_schema(&msg.xml_content) {
-                
-                let _: () = con.rpush("queue:db_persistence", json_str).await?;
-                println!("Valid. Pushed to DB Queue.");
+            if !is_valid {
+                eprintln!("Validation Failed for Job {} Chunk {}", in_msg.job_id, in_msg.chunk_id);
             } else {
-                //INVALID: Send to Dead Letter Queue
-                eprintln!("REJECTED Job {} Chunk {}. Sending to Error Queue.", msg.job_id, msg.chunk_id);
-                let _: () = con.rpush("queue:xml_errors", json_str).await?;
+                println!("Validation OK for Job {} Chunk {}", in_msg.job_id, in_msg.chunk_id);
             }
+
+            let out_msg = PipelineMsg {
+                job_id: in_msg.job_id,
+                chunk_id: in_msg.chunk_id,
+                xml_content: in_msg.xml_content,
+                status,
+            };
+
+            let json_out = serde_json::to_string(&out_msg)?;
+            let _: () = con.rpush("queue:db_persistence", json_out).await?;
         }
     }
 }

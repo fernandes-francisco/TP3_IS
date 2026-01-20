@@ -27,7 +27,7 @@ impl XmlQueryService for MyXmlService {
         let xpath_query = req.query_string;
         let db_url = self.db_url.clone();
 
-        println!("📡 Request received. Executing XPath: {}", xpath_query);
+        println!("Request received. Executing XPath: {}", xpath_query);
 
         let (tx, rx) = mpsc::channel(10);
         tokio::spawn(async move {
