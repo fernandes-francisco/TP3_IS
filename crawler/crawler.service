@@ -1,0 +1,18 @@
+[Unit]
+Description=TP3 Service
+After=network.target
+
+[Service]
+Type=oneshot
+User=o001
+Group=o001
+
+WorkingDirectory=/home/o001/TP3_IS/crawler/
+
+ExecStart=/usr/bin/python3 crawler.py
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

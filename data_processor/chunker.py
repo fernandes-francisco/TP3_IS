@@ -1,5 +1,4 @@
-#DEPLOYED TO AWS LAMBDA FUNCTION
-
+#DEPLOYED AS AN AWS LAMBDA FUNCTION
 import os
 import json
 import uuid
@@ -10,22 +9,18 @@ import csv
 import codecs
 from supabase import create_client, Client
 
-# --- Configuration ---
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
-BUCKET_NAME = 'tp3-bucket' 
-FILE_NAME = 'tp3.csv'    
+
 SQS_QUEUE_URL = os.environ.get('SQS_QUEUE_URL')
 REDIS_HOST = os.environ.get('REDIS_HOST')
 REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
 REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD', None)
 BATCH_SIZE = 50 
 
-# --- Clients ---
 sqs = boto3.client('sqs')
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-#Connect to Redis
 def get_redis_client():
     return redis.Redis(
         host=REDIS_HOST, 
@@ -40,7 +35,24 @@ def lambda_handler(event, context):
     print(f"Starting Job: {job_id}")
 
     try:
-        res = supabase.storage.from_(BUCKET_NAME).create_signed_url(FILE_NAME, 60)
+        
+        if 'body' in event and isinstance(event['body'], str):
+            payload = json.loads(event['body'])
+        else:
+            payload = event  
+
+        bucket_name = payload.get('bucket')
+        file_key = payload.get('key')
+
+        print(f"Received Request -> Bucket: {bucket_name}, Key: {file_key}")
+
+        if not bucket_name or not file_key:
+            return {
+                'statusCode': 400,
+                'body': json.dumps({"error": "Missing 'bucket' or 'key' in request body"})
+            }
+
+        res = supabase.storage.from_(bucket_name).create_signed_url(file_key, 60)
         download_url = res['signedURL']
 
         response = requests.get(download_url, stream=True)
@@ -72,22 +84,30 @@ def lambda_handler(event, context):
         
         print(f"Job {job_id} successfully split into chunks.")
         
-        supabase.storage.from_(BUCKET_NAME).remove([FILE_NAME])
+        new_path = f"inprocessing/{file_key}"
+        try:
+             supabase.storage.from_(bucket_name).move(file_key, new_path)
+             print(f"Moved file to {new_path}")
+        except Exception as move_err:
+             print(f"Warning moving file: {move_err}")
 
         return {
             'statusCode': 200,
-            'body': json.dumps(f"Job {job_id} started. Chunks: {chunk_counter}")
+            'body': json.dumps({
+                "message": f"Job {job_id} started.",
+                "chunks": chunk_counter,
+                "file": file_key
+            })
         }
 
     except Exception as e:
         print(f"Error: {str(e)}")
         return {
             'statusCode': 500,
-            'body': json.dumps(f"Error processing CSV: {str(e)}")
+            'body': json.dumps({"error": str(e)})
         }
 
 def send_batch_to_sqs(job_id, chunk_id, data):
-    
     payload = {
         "job_id": job_id,
         "chunk_id": chunk_id,

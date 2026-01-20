@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Crawler every 30 minutes
+
+[Timer]
+OnBootSec=5min
+
+OnCalendar=*:0/30
+
+Persistent=true
+
+[Install]
+WantedBy=timers.target
