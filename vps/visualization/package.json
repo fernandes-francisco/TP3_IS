@@ -1,0 +1,16 @@
+{
+  "name": "tp3_visualization",
+  "version": "1.0.0",
+  "description": "Visualization and Dashboard for TP3 BI Service",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": ["visualization", "dashboard", "bi"],
+  "author": "Miguel Azevedo",
+  "license": "MIT",
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

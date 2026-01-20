@@ -1,0 +1,285 @@
+{
+  "info": {
+    "name": "BI Service API",
+    "description": "Coleção de endpoints para testar o BI Service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health & Info",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/health",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["health"]
+            },
+            "description": "Verifica se o serviço está online"
+          },
+          "response": []
+        },
+        {
+          "name": "Service Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/info",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["info"]
+            },
+            "description": "Retorna informações sobre o serviço"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Queries - GET",
+      "item": [
+        {
+          "name": "Get All Assets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/query",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "query"]
+            },
+            "description": "Retorna todos os ativos (sem filtro)"
+          },
+          "response": []
+        },
+        {
+          "name": "Filter by Ticker (NVDA)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/query?q=symbol=NVDA",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "query"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "symbol=NVDA"
+                }
+              ]
+            },
+            "description": "Filtra ativos por Ticker (NVDA, AAPL, MSFT, JPM, WMT)"
+          },
+          "response": []
+        },
+        {
+          "name": "Filter by Type (Tecnologia)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/query?q=tipo=Tecnologia",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "query"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "tipo=Tecnologia"
+                }
+              ]
+            },
+            "description": "Filtra ativos por Tipo (Tecnologia, Financeiro, Bens de Consumo)"
+          },
+          "response": []
+        },
+        {
+          "name": "Filter by Ranking",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/query?q=ranking=1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "query"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "ranking=1"
+                }
+              ]
+            },
+            "description": "Filtra ativos por Ranking"
+          },
+          "response": []
+        },
+        {
+          "name": "Multiple Filters (Tecnologia + Ranking 1)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/query?q=tipo=Tecnologia ranking=1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "query"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "tipo=Tecnologia ranking=1"
+                }
+              ]
+            },
+            "description": "Combina múltiplos filtros (separados por espaço)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Queries - POST",
+      "item": [
+        {
+          "name": "Query All Assets (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/query",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "query"]
+            },
+            "description": "Retorna todos os ativos usando POST"
+          },
+          "response": []
+        },
+        {
+          "name": "Filter by Ticker (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"symbol=NVDA\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/query",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "query"]
+            },
+            "description": "Filtra ativos por Ticker usando POST"
+          },
+          "response": []
+        },
+        {
+          "name": "Filter by Type (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"tipo=Tecnologia\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/query",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "query"]
+            },
+            "description": "Filtra ativos por Tipo usando POST"
+          },
+          "response": []
+        },
+        {
+          "name": "Multiple Filters (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"tipo=Tecnologia ranking=1\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/query",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "query"]
+            },
+            "description": "Combina múltiplos filtros usando POST"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Filters",
+      "item": [
+        {
+          "name": "Get Available Filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/filters",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "filters"]
+            },
+            "description": "Retorna os filtros disponíveis (tickers, tipos, rankings)"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

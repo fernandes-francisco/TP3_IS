@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  bi_service:
+    build:
+      context: ./vps/bi_service
+    image: miguelazevedo57/bi_service:latest
+    container_name: bi_service
+    environment:
+      - NODE_ENV=production
+      - PORT=5001
+      - HTTP_PORT=8000
+      - XML_SERVICE_GRPC_URL=${XML_SERVICE_GRPC_URL:-80.225.187.13:50051}
+    ports:
+      - "5001:5001"
+      - "8000:8000"
+    networks:
+      - tp3_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  visualization:
+    build:
+      context: ./vps/visualization
+    image: miguelazevedo57/visualization:latest
+    container_name: visualization
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - bi_service
+    networks:
+      - tp3_network
+    restart: unless-stopped
+
+networks:
+  tp3_network:
+    driver: bridge

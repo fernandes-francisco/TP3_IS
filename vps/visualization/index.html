@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trabalho Prático TP3 - Yahoo Finance</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page">
+    <!-- Modal de Detalhes -->
+    <div id="details-modal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="details-title">Detalhes</h2>
+          <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div id="details-body" class="modal-body">
+          <p class="placeholder">A carregar detalhes...</p>
+        </div>
+      </div>
+    </div>
+
+    <header class="hero">
+      <div class="logo-container">
+        <img src="/assets/logo-ipvc.png" alt="IPVC Logo" class="logo-img">
+      </div>
+      <div class="hero-content">
+        <h1>Trabalho Prático TP3 - Yahoo Finance</h1>
+      </div>
+      <div class="status-card">
+        <div class="status-text-block">
+          <span class="status-label">Estado do serviço</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="status-badge" id="service-status-dot"></div>
+            <span class="status-value" id="service-status-text">A verificar...</span>
+          </div>
+          <span class="status-hint" id="service-status-time"></span>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel query-panel">
+        <div class="query-form-horizontal">
+          <input type="text" id="query-input" class="query-input-field" placeholder="Ex: symbol=AAPL name=Apple" />
+          <button class="primary" onclick="executeManualQuery()">Executar</button>
+        </div>
+      </section>
+
+      <div class="layout-grid">
+        <section class="panel filters-panel">
+          <h2>Filtros</h2>
+          <div class="guided-filters">
+            <div class="guided-filters-row">
+              <div class="select-group">
+                <label for="ticker-select">Ticker</label>
+                <select id="ticker-select" onchange="applyGuidedFilters()">
+                  <option value="">Todos</option>
+                </select>
+              </div>
+              <div class="select-group">
+                <label for="sort-order">Ordenar por Market Cap</label>
+                <select id="sort-order" onchange="applySorting()">
+                  <option value="">Sem ordenação</option>
+                  <option value="desc">Maior → Menor</option>
+                  <option value="asc">Menor → Maior</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel results-panel">
+          <div class="panel-header">
+            <h2>Resultados</h2>
+            <span class="results-count" id="results-count">0</span>
+          </div>
+          <div id="error-box" class="alert" style="display:none;"></div>
+          <div id="results-container" class="results-container">
+            <p class="placeholder">Selecione filtros para ver resultados.</p>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel history-panel">
+        <div class="panel-header">
+          <h2>Histórico</h2>
+          <span class="history-count" id="history-count">0</span>
+        </div>
+        <div id="history-container" class="history-container">
+          <p class="placeholder">Nenhuma pesquisa realizada.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer-info">
+      <div class="footer-content">
+        <div class="footer-column">
+          <span class="footer-label">Docentes Responsáveis</span>
+          <span class="footer-value">Professor Jorge Ribeiro e Professor Jackson Júnior</span>
+        </div>
+        <div class="footer-divider"></div>
+        <div class="footer-column">
+          <span class="footer-label">Desenvolvido por</span>
+          <span class="footer-value">Francisco Fernandes e Miguel Azevedo</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
