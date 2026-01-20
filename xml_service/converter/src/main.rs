@@ -9,18 +9,14 @@ use std::env;
 struct CsvRow { 
     #[serde(rename = "Ticker")]
     ticker: String,
-    
     #[serde(rename = "Nome")]
     name: String,
-    
     #[serde(rename = "Sector")]
     sector: String,
-
     #[serde(rename = "PriceSMA_EUR")]
     price_sma: String,
     #[serde(rename = "VolumeAvg")]
     volume_avg: String,
-
     #[serde(rename = "Market Cap")]
     market_cap: Option<String>,
     #[serde(rename = "PE Ratio (TTM)")]
@@ -33,7 +29,6 @@ struct CsvRow {
     prev_close: Option<String>,
     #[serde(rename = "Beta (5Y Monthly)")]
     beta: Option<String>,
-
     Price_1: Option<String>, Volume_1: Option<String>,
     Price_2: Option<String>, Volume_2: Option<String>,
     Price_3: Option<String>, Volume_3: Option<String>,
@@ -136,6 +131,7 @@ struct XmlMsg {
     job_id: String,
     chunk_id: u32,
     xml_content: String,
+    mapper_version: String,
 }
 
 fn convert_to_xml(csv_data: String, job_id: &str, chunk_id: u32) -> Result<String> {
@@ -143,7 +139,6 @@ fn convert_to_xml(csv_data: String, job_id: &str, chunk_id: u32) -> Result<Strin
     let mut assets = Vec::new();
     for result in reader.deserialize() {
         let row: CsvRow = result?; 
-
         let fundamentals = FundamentalData {
             MarketCap: row.market_cap.unwrap_or("Unknown".into()),
             PERatio: row.pe_ratio.unwrap_or("".into()),
@@ -152,9 +147,7 @@ fn convert_to_xml(csv_data: String, job_id: &str, chunk_id: u32) -> Result<Strin
             PrevClose: row.prev_close.unwrap_or("".into()),
             Beta: row.beta.unwrap_or("".into()),
         };
-
         let mut days = Vec::new();
-        
         let mut add_day = |idx: u8, p: Option<String>, v: Option<String>| {
             if let Some(price) = p {
                 if !price.is_empty() {
@@ -166,7 +159,6 @@ fn convert_to_xml(csv_data: String, job_id: &str, chunk_id: u32) -> Result<Strin
                 }
             }
         };
-
         add_day(1, row.Price_1, row.Volume_1);
         add_day(2, row.Price_2, row.Volume_2);
         add_day(3, row.Price_3, row.Volume_3);
@@ -180,15 +172,9 @@ fn convert_to_xml(csv_data: String, job_id: &str, chunk_id: u32) -> Result<Strin
 
         assets.push(Asset {
             ticker: row.ticker,
-            identification: Identification {
-                name: row.name,
-                sector: row.sector,
-            },
+            identification: Identification { name: row.name, sector: row.sector },
             fundamental_data: fundamentals,
-            indicators: Indicators {
-                price_sma: row.price_sma,
-                avg_volume: row.volume_avg,
-            },
+            indicators: Indicators { price_sma: row.price_sma, avg_volume: row.volume_avg },
             daily_data: DailyDataWrapper { days },
         });
     }
@@ -203,18 +189,15 @@ fn convert_to_xml(csv_data: String, job_id: &str, chunk_id: u32) -> Result<Strin
     let mut xml_string = String::new();
     let mut serializer = quick_xml::se::Serializer::new(&mut xml_string);
     serializer.indent(' ', 2);
-    
     report.serialize(serializer)?;
-    
     Ok(xml_string)
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let redis_host = env::var("REDIS_HOST").context("REDIS_HOST env var missing")?;
+    let redis_host = env::var("REDIS_HOST").context("REDIS_HOST missing")?;
     let redis_port = env::var("REDIS_PORT").unwrap_or("6379".to_string());
     let redis_password = env::var("REDIS_PASSWORD").unwrap_or_default();
-    
     let aws_config = aws_config::load_from_env().await;
     let s3_client = S3Client::new(&aws_config);
 
@@ -231,7 +214,6 @@ async fn main() -> Result<()> {
 
     loop {
         let result: Option<(String, String)> = con.blpop("queue:csv_processing", 0.0).await?;
-        
         if let Some((_, json_str)) = result {
             let input: InputMsg = match serde_json::from_str(&json_str) {
                 Ok(msg) => msg,
@@ -240,40 +222,28 @@ async fn main() -> Result<()> {
                     continue;
                 }
             };
-            
             println!("Processing Job {} - Chunk {}", input.job_id, input.chunk_id);
-
             match process_job(&s3_client, &input).await {
                 Ok(xml_output) => {
                     let output_msg = XmlMsg {
                         job_id: input.job_id,
                         chunk_id: input.chunk_id,
                         xml_content: xml_output,
+                        mapper_version: "1.0.0".to_string(),
                     };
-
                     let output_json = serde_json::to_string(&output_msg)?;
                     let _: () = con.rpush("queue:xml_validation", output_json).await?;
-                    println!("Converted & Pushed to Validation Queue.");
                 },
-                Err(e) => {
-                    eprintln!("Failed to convert chunk: {}", e);
-                }
+                Err(e) => { eprintln!("Failed to convert chunk: {}", e); }
             }
         }
     }
 }
 
 async fn process_job(s3: &S3Client, input: &InputMsg) -> Result<String> {
-    let obj = s3.get_object()
-        .bucket(&input.s3_bucket)
-        .key(&input.s3_key)
-        .send()
-        .await
-        .context("Failed to download from S3")?;
-
+    let obj = s3.get_object().bucket(&input.s3_bucket).key(&input.s3_key).send().await.context("Failed S3 download")?;
     let data = obj.body.collect().await?.into_bytes();
     let csv_str = String::from_utf8(data.to_vec())?;
-
     let xml_str = convert_to_xml(csv_str, &input.job_id, input.chunk_id)?;
     Ok(xml_str)
 }

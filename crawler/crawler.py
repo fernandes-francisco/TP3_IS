@@ -1,154 +1,146 @@
 import csv
+from pathlib import Path
 import time
 import os
+import sys
+from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from supabase import create_client, Client
 
-BASE_URL = "https://finance.yahoo.com/markets/stocks/most-active/?start=0&count=100"
-LOCAL_FILENAME = "yahoo_finance_most_active_sorted.csv"
+script_dir = Path(__file__).parent.absolute()
+load_dotenv(dotenv_path=script_dir / ".env")
+
+BASE_URL = "https://finance.yahoo.com/markets/stocks/large-cap-stocks/"
+LOCAL_FILENAME = script_dir / "market_data.csv"
 REMOTE_FILENAME = os.getenv("REMOTE_FILENAME", "market.csv")
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-resultados = []
+if SUPABASE_URL and not SUPABASE_URL.endswith("/"):
+    SUPABASE_URL += "/"
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("Erro: Variaveis de ambiente nao encontradas.")
+    sys.exit(1)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 options = webdriver.ChromeOptions()
-options.add_argument("--no-sandbox") 
-options.add_argument("--disable-dev-shm-usage") 
+options.add_argument("--headless=new") 
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument("--window-size=1920,1080")
+options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
 driver = webdriver.Chrome(options=options)
-wait = WebDriverWait(driver, 15)
+wait = WebDriverWait(driver, 20)
+stock_urls = []
+resultados = []
 
 try:
-    driver.get(BASE_URL)
-    time.sleep(2)  
-
-    try:
-        go_to_end_button = wait.until(EC.element_to_be_clickable(
-            (By.XPATH, "//button[contains(., 'Go to end') or contains(., 'Ver tudo')]")
-        ))
-        go_to_end_button.click()
-        time.sleep(1)
-    except (NoSuchElementException, TimeoutException):
-        pass
-
-    try:
-        reject_cookies_button = wait.until(EC.element_to_be_clickable(
-            (By.XPATH, "//button[contains(., 'Reject all') or contains(., 'Rejeitar todos')]")
-        ))
-        reject_cookies_button.click()
-        time.sleep(1)
-    except (NoSuchElementException, TimeoutException):
-        pass
-
-    try:
-        market_cap_header = wait.until(EC.element_to_be_clickable(
-            (By.XPATH, "//span[text()='Market Cap']")
-        ))
-        market_cap_header.click()
-        time.sleep(3)
-    except (NoSuchElementException, TimeoutException):
-        print("Não foi possível ordenar por 'Market Cap'.")
-
-    stock_rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table/tbody/tr")))
-    stock_urls = []
-    for row in stock_rows:
-        try:
-            link = row.find_element(By.XPATH, ".//td[1]/a").get_attribute("href")
-            stock_urls.append(link)
-        except NoSuchElementException:
-            continue
-
-    print(f"Encontrados {len(stock_urls)} stocks. A processar...")
+    print("Fase 1: A recolher links dos ativos.")
     
-    for url in stock_urls: 
-        driver.get(url)
-        time.sleep(1) 
-
-        try:
-            ticker_el = driver.find_element(By.XPATH, "//h1")
-            full_text = ticker_el.text
-            
-            if "(" in full_text:
-                parts = full_text.split(" (")
-                nome = parts[0]
-                ticker = parts[1].replace(")", "")
-            else:
-                ticker = full_text
-                nome = full_text
-
-            def get_data(label):
-                try:
-                    return driver.find_element(
-                        By.XPATH, f"//span[contains(text(), '{label}')]/../following-sibling::span | //td[contains(text(), '{label}')]/following-sibling::td"
-                    ).text
-                except:
-                    return ""
-
-            market_cap = get_data("Market Cap")
-            previous_close = get_data("Previous Close")
-            open_price = get_data("Open")
-            days_range = get_data("Day's Range")
-            week_52 = get_data("52 Week Range")
-            pe_ratio = get_data("PE Ratio (TTM)")
-            eps = get_data("EPS (TTM)")
-            beta = get_data("Beta (5Y Monthly)")
-            
+    for offset in [0, 100, 200]:
+        url_paginada = f"{BASE_URL}?start={offset}&count=100"
+        driver.get(url_paginada)
+        
+        if offset == 0:
+            time.sleep(3)
             try:
-                change_percent = driver.find_element(By.XPATH, "//fin-streamer[contains(@data-field, 'regularMarketChangePercent')]").text
+                cookie_btn = driver.find_element(By.XPATH, "//button[contains(., 'Accept') or contains(., 'Agree') or contains(., 'Aceitar') or contains(., 'Concordo')]")
+                cookie_btn.click()
             except:
-                change_percent = "0%"
+                pass
 
-            resultados.append({
+        wait.until(EC.presence_of_element_located((By.XPATH, "//table")))
+        time.sleep(2)
+        
+        elementos_links = driver.find_elements(By.XPATH, "//table//tr/td[1]//a[contains(@href, '/quote/')]")
+        for el in elementos_links:
+            link = el.get_attribute("href")
+            if link and link not in stock_urls:
+                stock_urls.append(link)
+        
+        print(f"Links recolhidos: {len(stock_urls)}")
+        if len(stock_urls) >= 300:
+            break
+
+    print(f"\nFase 2: A extrair dados de {len(stock_urls[:300])} ativos.")
+    
+    for i, url in enumerate(stock_urls[:300]):
+        try:
+            driver.get(url)
+            time.sleep(1.5)
+
+            titulo_aba = driver.title
+            
+            if "(" in titulo_aba and ")" in titulo_aba:
+                parte_inicial = titulo_aba.split(")")[0]
+                divisao = parte_inicial.split(" (")
+                nome = divisao[0].strip()
+                ticker = divisao[1].strip()
+            else:
+                nome = "Desconhecido"
+                ticker = "N/A"
+
+            def obter_estatistica(label):
+                try:
+                    xpath = f"//li[.//span[contains(text(), '{label}')]]//span[contains(@class, 'value')]"
+                    return driver.find_element(By.XPATH, xpath).text
+                except:
+                    return "N/A"
+
+            registo = {
                 "Ticker": ticker,
                 "Nome": nome,
-                "Market Cap": market_cap,
-                "Change%": change_percent,
-                "Previous Close": previous_close,
-                "Open": open_price,
-                "Day's Range": days_range,
-                "52 Week Range": week_52,
-                "PE Ratio (TTM)": pe_ratio,
-                "EPS (TTM)": eps,
-                "Beta (5Y Monthly)": beta
-            })
+                "Market Cap": obter_estatistica("Market Cap"),
+                "Change%": "0%", 
+                "Previous Close": obter_estatistica("Previous Close"),
+                "Open": obter_estatistica("Open"),
+                "Day's Range": obter_estatistica("Day's Range"),
+                "52 Week Range": obter_estatistica("52 Week Range"),
+                "PE Ratio (TTM)": obter_estatistica("PE Ratio"),
+                "EPS (TTM)": obter_estatistica("EPS (TTM)"),
+                "Beta (5Y Monthly)": obter_estatistica("Beta")
+            }
 
-            print(f"Extraído: {ticker}")
+            try:
+                registo["Change%"] = driver.find_element(By.XPATH, "//section[@data-testid='quote-price']//fin-streamer[contains(@data-field, 'Percent')]").text
+            except:
+                pass
+
+            resultados.append(registo)
+            print(f"   [{i+1}] Processado: {ticker}")
 
         except Exception as e:
-            print(f"Erro em {url}: {e}")
+            print(f"   [{i+1}] Erro no ativo {url}: {e}")
 
 finally:
     driver.quit()
 
-    if resultados:
-        print(f"A guardar {len(resultados)} linhas localmente...")
-        with open(LOCAL_FILENAME, "w", encoding="utf-8", newline='') as f:
-            headers = [
-                "Ticker", "Nome", "Market Cap", "Change%", "Previous Close", "Open", 
-                "Day's Range", "52 Week Range", "PE Ratio (TTM)", "EPS (TTM)", "Beta (5Y Monthly)"
-            ]
-            writer = csv.DictWriter(f, fieldnames=headers)
-            writer.writeheader()
-            writer.writerows(resultados)
+if resultados:
+    print(f"\nA guardar dados em {LOCAL_FILENAME}")
+    with open(LOCAL_FILENAME, "w", encoding="utf-8", newline='') as f:
+        cabecalhos = ["Ticker", "Nome", "Market Cap", "Change%", "Previous Close", "Open", "Day's Range", "52 Week Range", "PE Ratio (TTM)", "EPS (TTM)", "Beta (5Y Monthly)"]
+        escritor = csv.DictWriter(f, fieldnames=cabecalhos)
+        escritor.writeheader()
+        escritor.writerows(resultados)
 
-        print("A enviar para o bucket...")
-        try:
-            with open(LOCAL_FILENAME, 'rb') as f:
-                supabase.storage.from_(SUPABASE_BUCKET).upload(
-                    file=f,
-                    path=REMOTE_FILENAME,
-                    file_options={"content-type": "text/csv", "upsert": "true"}
-                )
-            os.remove(f"./{LOCAL_FILENAME}")
-            print("Sucesso! Ficheiro no Supabase.")
-        except Exception as e:
-            print(f"Erro no upload para Supabase: {e}")
-    else:
-        print("Nenhum resultado para enviar.")
+    print("A enviar dados para o Supabase.")
+    try:
+        with open(LOCAL_FILENAME, 'rb') as f:
+            supabase.storage.from_(SUPABASE_BUCKET).upload(
+                file=f,
+                path=REMOTE_FILENAME,
+                file_options={"content-type": "text/csv", "upsert": "true"}
+            )
+        print("Sucesso: O ficheiro foi carregado.")
+    except Exception as e:
+        print(f"Erro no envio: {e}")
+else:
+    print("Erro: Nenhum dado foi recolhido.")

@@ -10,6 +10,7 @@ struct XmlMsg {
     job_id: String,
     chunk_id: u32,
     xml_content: String,
+    mapper_version: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -18,14 +19,13 @@ struct PipelineMsg {
     chunk_id: u32,
     xml_content: String,
     status: String, 
+    mapper_version: String,
 }
 
 fn validate_schema(xml: &str) -> bool {
     let mut reader = Reader::from_str(xml);
     reader.trim_text(true);
-
     let mut buf = Vec::new();
-    
     let mut has_root = false;
     let mut has_job_id = false;
     let mut asset_count = 0;
@@ -38,8 +38,7 @@ fn validate_schema(xml: &str) -> bool {
                 match e.name().as_ref() {
                     b"MarketReport" => {
                         has_root = true;
-                        if e.try_get_attribute("JobID").is_ok() && 
-                           e.try_get_attribute("GeneratedAt").is_ok() {
+                        if e.try_get_attribute("JobID").is_ok() && e.try_get_attribute("GeneratedAt").is_ok() {
                             has_job_id = true;
                         }
                     },
@@ -55,24 +54,7 @@ fn validate_schema(xml: &str) -> bool {
         }
         buf.clear();
     }
-
-    if !has_root || !has_job_id {
-        return false;
-    }
-
-    if asset_count == 0 {
-        return false;
-    }
-
-    if !has_fundamentals {
-        return false;
-    }
-
-    if !has_daily_data {
-        return false;
-    }
-
-    true
+    has_root && has_job_id && asset_count > 0 && has_fundamentals && has_daily_data
 }
 
 #[tokio::main]
@@ -90,34 +72,25 @@ async fn main() -> Result<()> {
     let client = redis::Client::open(redis_url)?;
     let mut con = client.get_tokio_connection().await?;
 
-    println!("Validator Service Started (Manual Logic). Listening...");
+    println!("Validator Service Started. Listening...");
 
     loop {
         let result: Option<(String, String)> = con.blpop("queue:xml_validation", 0.0).await?;
-        
         if let Some((_, json_str)) = result {
             let in_msg: XmlMsg = match serde_json::from_str(&json_str) {
                 Ok(m) => m,
-                Err(e) => {
-                    eprintln!("JSON Error: {}", e);
-                    continue;
-                }
+                Err(e) => { eprintln!("JSON Error: {}", e); continue; }
             };
 
             let is_valid = validate_schema(&in_msg.xml_content);
             let status = if is_valid { "OK".to_string() } else { "ERRO_VALIDACAO".to_string() };
-
-            if !is_valid {
-                eprintln!("Validation Failed for Job {} Chunk {}", in_msg.job_id, in_msg.chunk_id);
-            } else {
-                println!("Validation OK for Job {} Chunk {}", in_msg.job_id, in_msg.chunk_id);
-            }
 
             let out_msg = PipelineMsg {
                 job_id: in_msg.job_id,
                 chunk_id: in_msg.chunk_id,
                 xml_content: in_msg.xml_content,
                 status,
+                mapper_version: in_msg.mapper_version,
             };
 
             let json_out = serde_json::to_string(&out_msg)?;

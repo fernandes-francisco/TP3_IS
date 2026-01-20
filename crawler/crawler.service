@@ -1,18 +1,16 @@
 [Unit]
-Description=TP3 Service
+Description=TP3 Yahoo Finance Crawler
 After=network.target
 
 [Service]
 Type=oneshot
 User=o001
 Group=o001
-
-WorkingDirectory=/home/o001/TP3_IS/crawler/
-
-ExecStart=/usr/bin/python3 crawler.py
+WorkingDirectory=/home/o001/TP3_IS/crawler
+EnvironmentFile=/home/o001/TP3_IS/crawler/.env
 
 StandardOutput=journal
-StandardError=journal
+ExecStart=/usr/bin/python3 -u crawler.py
 
 [Install]
 WantedBy=multi-user.target

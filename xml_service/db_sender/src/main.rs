@@ -10,6 +10,7 @@ struct PipelineMsg {
     chunk_id: u32,
     xml_content: String,
     status: String, 
+    mapper_version: String,
 }
 
 #[derive(Serialize)]
@@ -45,6 +46,8 @@ async fn main() -> Result<()> {
 
     let http_client = reqwest::Client::new();
 
+    println!("Persister Service Started. Listening on 'queue:db_persistence'...");
+
     loop {
         let result: Option<(String, String)> = redis_con.blpop("queue:db_persistence", 0.0).await?;
         
@@ -62,11 +65,11 @@ async fn main() -> Result<()> {
             if final_status == "OK" {
                 println!("Persisting Job {} - Chunk {}", msg.job_id, msg.chunk_id);
                 
-                let insert_stmt = "INSERT INTO xml_storage (job_id, chunk_id, xml_documento) VALUES ($1, $2, $3::xml)";
+                let insert_stmt = "INSERT INTO xml_storage (job_id, chunk_id, xml_documento, mapper_version) VALUES ($1, $2, $3::xml, $4)";
                 
                 match db_client.execute(
                     insert_stmt,
-                    &[&msg.job_id, &(msg.chunk_id as i32), &msg.xml_content],
+                    &[&msg.job_id, &(msg.chunk_id as i32), &msg.xml_content, &msg.mapper_version],
                 ).await {
                     Ok(_) => {
                         println!("Saved Chunk {} to DB.", msg.chunk_id);
