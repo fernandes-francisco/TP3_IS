@@ -4,7 +4,7 @@ FROM rust:1.88-slim-bookworm as builder
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y protobuf-compiler && \
+    apt-get install -y protobuf-compiler pkg-config libssl-dev && \
     rm -rf /var/lib/apt/lists/*
 
 COPY . .

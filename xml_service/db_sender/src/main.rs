@@ -135,16 +135,20 @@ async fn main() -> Result<()> {
                 println!("Persisting Job {} - Chunk {}", msg.job_id, msg.chunk_id);
                 
                 let insert_stmt = "INSERT INTO xml_storage (job_id, chunk_id, xml_documento, mapper_version) VALUES ($1, $2, $3::xml, $4)";
+                let chunk_id_i32: i32 = msg.chunk_id as i32;
                 
                 match db_client.execute(
                     insert_stmt,
-                    &[&msg.job_id, &(msg.chunk_id as i32), &msg.xml_content, &msg.mapper_version],
+                    &[&msg.job_id, &chunk_id_i32, &msg.xml_content, &msg.mapper_version],
                 ).await {
                     Ok(_) => {
                         println!("Saved Chunk {} to DB.", msg.chunk_id);
                     },
                     Err(e) => {
                         eprintln!("DB Insert Failed: {}", e);
+                        if let Some(db_err) = e.as_db_error() {
+                            eprintln!("  DB Error: {} - {}", db_err.code().code(), db_err.message());
+                        }
                         final_status = "ERRO_PERSISTENCIA".to_string();
                     }
                 }
