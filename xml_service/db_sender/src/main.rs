@@ -133,8 +133,11 @@ async fn main() -> Result<()> {
             
             if final_status == "OK" {
                 println!("Persisting Job {} - Chunk {}", msg.job_id, msg.chunk_id);
+                println!("  job_id: {}, chunk_id: {}, xml_len: {}, mapper: {}", 
+                    msg.job_id, msg.chunk_id, msg.xml_content.len(), msg.mapper_version);
                 
-                let insert_stmt = "INSERT INTO xml_storage (job_id, chunk_id, xml_documento, mapper_version) VALUES ($1, $2, $3::xml, $4)";
+                // Use $3::text to tell postgres the parameter is text, then cast to xml
+                let insert_stmt = "INSERT INTO xml_storage (job_id, chunk_id, xml_documento, mapper_version) VALUES ($1::text, $2::int4, ($3::text)::xml, $4::text)";
                 let chunk_id_i32: i32 = msg.chunk_id as i32;
                 
                 match db_client.execute(
